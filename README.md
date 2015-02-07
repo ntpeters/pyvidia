@@ -44,7 +44,9 @@ get_required_driver_series(device_id)
 
 ```
 get_latest_driver_version(device_id)
-
+    Returns the latest driver version of the required driver series for the
+    given or detected NVIDIA device.
+    
     Keyward Args:
     device_id - The device PCI ID to check against the supported devices lists
 ```
