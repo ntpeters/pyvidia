@@ -53,8 +53,8 @@ get_latest_driver_version(device_id)
 
 ```
 get_nvidia_device()
-    Returns the device info (name and ID) for the detected NVIDIA device, or none if one is not
-    present.
+    Returns the device info (name and ID) for the detected NVIDIA device,
+    or none if one is not present.
 ```
 
 ```
