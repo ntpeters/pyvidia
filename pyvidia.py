@@ -69,7 +69,6 @@ def __get_driver_series_supported_devices(tag):
     Keyword Args:
     tag -- Device driver section header tag
     """
-    device = collections.namedtuple("Device", ["name", "pci_id"])
     devices = []
 
     table = tag.parent.next_sibling.next_sibling
