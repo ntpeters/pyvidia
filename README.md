@@ -27,6 +27,8 @@ The following command line options are also available:
 
 --deviceid DEVICEID     Provide a device PCI ID to be used instead of auto-
                         detecting one
+
+-v, --verbose           More detailed output
 ```
 
 ##Import
@@ -48,8 +50,8 @@ get_latest_driver_version(device_id)
 ```
 
 ```
-get_nvidia_device_id()
-    Returns the device ID of the detected NVIDIA device, or none if one is not
+get_nvidia_device()
+    Returns the device info (name and ID) for the detected NVIDIA device, or none if one is not
     present.
 ```
 

@@ -26,6 +26,8 @@ series_lookup = None
 
 device = collections.namedtuple("Device", ["name", "pci_id"])
 
+verbose = False
+
 def __is_driver_section_header(tag):
     """
     Returns true if the given tag is a driver version section header.
@@ -76,11 +78,14 @@ def __get_driver_series_supported_devices(tag):
     for row in rows:
         cols = row.find_all('td')
         if len(cols) >= 2:
-            if not "GPU product" in cols[0].text:
+            if "GPU product" not in cols[0].text and "Device" not in cols[0].text:
                 device_name = cols[0].text
-                pci_id = cols[1].text
-                device_info = device(name=device_name, pci_id=pci_id)
-                devices.append(device_info)
+                pci_id_regex = re.compile("[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]")
+                pci_id_match = pci_id_regex.search(cols[1].text)
+                if pci_id_match:
+                    pci_id = cols[1].text[pci_id_match.start():pci_id_match.end()]
+                    device_info = device(name=device_name, pci_id=pci_id)
+                    devices.append(device_info)
 
     return devices
 
@@ -103,7 +108,7 @@ def __get_current_driver_supported_devices(url):
             cols = row.find_all('td')
             if len(cols) >= 2:
                 device_name = cols[0].text
-                pci_id = "0x" + cols[1].text.split(' ')[0]
+                pci_id = cols[1].text.split(' ')[0]
                 device_info = device(name=device_name, pci_id=pci_id)
                 devices.append(device_info)
 
@@ -226,9 +231,9 @@ def get_all_supported_devices():
 
     return series_lookup
 
-def get_nvidia_device_id():
+def get_nvidia_device():
     """
-    Returns the device ID of the NVIDIA device, if present.
+    Returns the device info (name and ID) for the NVIDIA device, if present.
     """
     pci_vga = ""
 
@@ -250,9 +255,16 @@ def get_nvidia_device_id():
             pci_id_match = pci_id_regex.search(pci_vga)
             id_start = pci_id_match.start() + 1
             id_end = pci_id_match.end() - 1
-            pci_id = pci_vga[id_start:id_end]
+            pci_id = pci_vga[id_start:id_end].upper()
 
-            return "0x" + pci_id.upper()
+            device_name_regex = re.compile('nvidia.*\[10de')
+            device_name_match = device_name_regex.search(pci_vga.lower())
+            name_start = device_name_match.start()
+            name_end = device_name_match.end() - 5
+            device_name = pci_vga[name_start:name_end]
+
+            return device(name=device_name, pci_id=pci_id)
+
 
     return None
 
@@ -264,7 +276,9 @@ def get_required_driver_series(device_id=None):
     device_id - The device PCI ID to check against the supported devices lists
     """
     if not device_id:
-        device_id = get_nvidia_device_id()
+        device = get_nvidia_device()
+        if device:
+            device_id = device.pci_id
 
     if device_id:
         if not series_lookup:
@@ -289,31 +303,53 @@ def get_latest_driver_version(device_id=None):
     return series_lookup[driver_series]["latest_version"]
 
 def __main():
+    global verbose
+    latest = False
+    series = True
+    pci_id = None
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--latest", help="Output the latest version number of the driver for the detected NVIDIA device", action="store_true")
     parser.add_argument("--series", help="Output the required driver series for the detected NVIDIA device [Default]", action="store_true")
     parser.add_argument("--deviceid", help="Provide a device PCI ID to be used instead of auto-detecting one")
+    parser.add_argument("-v", "--verbose", help="More detailed output", action="store_true")
     args = parser.parse_args()
 
-    pci_id = None
+    if args.verbose:
+        verbose = True
+    if args.latest:
+        latest = True
+        series = False
+
     if args.deviceid:
-        pci_id = args.deviceid
+        pci_id = args.deviceid.upper()
+        if verbose:
+            print "Device ID: " + pci_id
     else:
-        pci_id = get_nvidia_device_id()
+        if verbose:
+            print "Searching for NVIDIA device..."
+        device = get_nvidia_device()
+        if device:
+            if verbose:
+                print "Device Found: " + device.name
+                print "Device ID: " + device.pci_id
+            pci_id = device.pci_id
 
     if pci_id:
-        result = None
-        if args.latest:
-            result = get_latest_driver_version(pci_id)
-        else:
-           result = get_required_driver_series(pci_id)
+        latest_version = get_latest_driver_version(pci_id)
+        required_series = get_required_driver_series(pci_id)
 
-        if result:
-            print result
-        else:
-            print "No known compatible driver!"
-    else:
-        print "No NVIDIA device detected!"
+        if verbose:
+            print "Required Driver Series: " + required_series
+            print "Latest Driver Version: " + latest_version
+        elif latest and latest_version:
+            print latest_version
+        elif series and required_series:
+            print required_series
+        elif verbose:
+                print "No known compatible driver!"
+    elif verbose:
+            print "No NVIDIA device detected!"
 
 if __name__ == "__main__":
     __main()
