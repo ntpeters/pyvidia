@@ -1,12 +1,12 @@
 pyvidia
 =======
-Pyvidia is a script to detect the required driver series for an NVIDIA graphics
-card in a Linux environment.
+Pyvidia is a script to detect the required driver series (and latest driver
+version) for an NVIDIA graphics card in a Linux environment.
 
 The script scrapes device and driver data from `nvidia.com`, so its device and
 driver information are always up-to-date.
 
-Inpired by the `nvidia-detect` utility in ELRepo:
+Inspired by the `nvidia-detect` utility in ELRepo:
 http://elrepo.org/tiki/nvidia-detect
 
 #Usage
