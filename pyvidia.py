@@ -27,6 +27,7 @@ series_lookup = None
 device = collections.namedtuple("Device", ["name", "pci_id"])
 
 verbose = False
+prefer_long_lived = True
 
 def __is_driver_section_header(tag):
     """
@@ -285,6 +286,11 @@ def get_required_driver_series(device_id=None):
             get_all_supported_devices()
 
         for driver_series, series_info in series_lookup.iteritems():
+            if prefer_long_lived and driver_series in short_lived_version:
+                continue
+            elif not prefer_long_lived and driver_series in long_lived_version:
+                continue
+
             for device in series_info["devices"]:
                 if device_id == device.pci_id:
                     return driver_series
@@ -304,22 +310,29 @@ def get_latest_driver_version(device_id=None):
 
 def __main():
     global verbose
+    global prefer_long_lived
     latest = False
     series = True
     pci_id = None
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--latest", help="Output the latest version number of the driver for the detected NVIDIA device", action="store_true")
     parser.add_argument("--series", help="Output the required driver series for the detected NVIDIA device [Default]", action="store_true")
+    parser.add_argument("--latest", help="Output the latest version number of the driver for the detected NVIDIA device", action="store_true")
+    parser.add_argument("--longlived", help="Denotes that the long lived version of the current drivers should be prefered [Default]", action="store_true")
+    parser.add_argument("--shortlived", help="Denotes that the short lived version of the current drivers should be prefered", action="store_true")
     parser.add_argument("--deviceid", help="Provide a device PCI ID to be used instead of auto-detecting one")
     parser.add_argument("-v", "--verbose", help="More detailed output", action="store_true")
     args = parser.parse_args()
 
     if args.verbose:
         verbose = True
+
     if args.latest:
         latest = True
         series = False
+
+    if args.shortlived:
+        prefer_long_lived = False
 
     if args.deviceid:
         pci_id = args.deviceid.upper()
@@ -336,16 +349,25 @@ def __main():
             pci_id = device.pci_id
 
     if pci_id:
-        latest_version = get_latest_driver_version(pci_id)
         required_series = get_required_driver_series(pci_id)
+        latest_version = None
+        if required_series:
+            latest_version = series_lookup[required_series]["latest_version"]
 
-        if verbose:
-            print "Required Driver Series: " + required_series
-            print "Latest Driver Version: " + latest_version
-        elif latest and latest_version:
-            print latest_version
-        elif series and required_series:
-            print required_series
+        if required_series:
+            if verbose:
+                series_designation = ""
+                if required_series in long_lived_version or required_series in short_lived_version:
+                    series_designation = "Current"
+                else:
+                    series_designation = "Legacy"
+
+                print "Required " + series_designation  + " Driver Series: " + required_series + ".xx"
+                print "Latest Driver Version: " + latest_version
+            elif latest and latest_version:
+                print latest_version
+            elif series and required_series:
+                print required_series
         elif verbose:
                 print "No known compatible driver!"
     elif verbose:

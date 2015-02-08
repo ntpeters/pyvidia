@@ -15,15 +15,22 @@ in other scripts.
 
 ##Script
 When executing as a script, the default behavior is to return the required
-driver series for the detected NVIDIA device.
+driver series for the detected NVIDIA device. In the case of current drivers,
+the long lived branch is preferred by default over the short lived branch.
 
 The following command line options are also available:
 ```
+--series                Output the required driver series for the detected
+                        NVIDIA device [Default]
+
 --latest                Output the latest version number of the driver for the
                         detected NVIDIA device
 
---series                Output the required driver series for the detected
-                        NVIDIA device [Default]
+--longlived             Denotes that the long lived version of the current
+                        drivers should be preferred [Default]
+
+--shortlived            Denotes that the short lived version of the current
+                        drivers should be preferred.
 
 --deviceid DEVICEID     Provide a device PCI ID to be used instead of auto-
                         detecting one
@@ -46,7 +53,7 @@ get_required_driver_series(device_id)
 get_latest_driver_version(device_id)
     Returns the latest driver version of the required driver series for the
     given or detected NVIDIA device.
-    
+
     Keyward Args:
     device_id - The device PCI ID to check against the supported devices lists
 ```
