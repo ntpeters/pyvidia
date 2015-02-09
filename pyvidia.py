@@ -14,19 +14,35 @@ import urllib2
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
 
+# URL to scrape device info from for legacy devices
 legacy_device_url = "http://www.nvidia.com/object/IO_32667.html"
+# URL to scrape version number info from
 unix_driver_url = "http://www.nvidia.com/object/unix.html"
+# URLs to scrape device info from for the long and short lived drivers
 long_lived_url = ""
 short_lived_url = ""
+# Versions of the long and short lived current drivers
 long_lived_version = ""
 short_lived_version = ""
+# Versions of the legacy drivers
 legacy_versions = []
 
-series_lookup = None
-
+# Named tuple representing a device, containing its name and PCI ID
 device = collections.namedtuple("Device", ["name", "pci_id"])
 
+# Dictionary keyed by driver series, containing a dictionary with the
+# latest version number and a list of supported devices.
+# For Example:
+#     { <driver-series> :
+#       { latest_version : <latest-version>,
+#         devices : [ device( name : <device-name>, pci_id : <device-pci-id> ) ]
+#       }
+#     }
+series_lookup = None
+
+# Whether verbose mode should be enabled or not
 verbose = False
+# Denotes if the long lived current driver should be preferred over the short lived
 prefer_long_lived = True
 
 def __is_driver_section_header(tag):
