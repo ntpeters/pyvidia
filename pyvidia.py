@@ -7,6 +7,7 @@
 
 import argparse
 import collections
+import platform
 import re
 import subprocess
 import sys
@@ -26,6 +27,11 @@ long_lived_version = ""
 short_lived_version = ""
 # Versions of the legacy drivers
 legacy_versions = []
+# Download links for each version
+version_urls = {}
+
+# Whether this OS is 64-bit or not
+is_64bit = False
 
 # Named tuple representing a device, containing its name and PCI ID
 device = collections.namedtuple("Device", ["name", "pci_id"])
@@ -35,7 +41,8 @@ device = collections.namedtuple("Device", ["name", "pci_id"])
 # For Example:
 #     { <driver-series> :
 #       { latest_version : <latest-version>,
-#         devices : [ device( name : <device-name>, pci_id : <device-pci-id> ) ]
+#         devices : [ device( name : <device-name>, pci_id : <device-pci-id> ) ],
+#         url : <download-url>
 #       }
 #     }
 series_lookup = None
@@ -131,6 +138,32 @@ def __get_current_driver_supported_devices(url):
 
     return devices
 
+def __get_download_url_for_tag(tag):
+    if not tag: return None
+
+    dl_page_link = tag['href']
+    if not dl_page_link: return None
+    if dl_page_link[0] == "/":
+        dl_page_link = "http://www.nvidia.com" + dl_page_link
+
+    dl_page = urllib2.urlopen(dl_page_link)
+    dl_soup = BeautifulSoup(dl_page)
+
+    eula_page_link = dl_soup.find('img', alt='Download')
+    if eula_page_link is None:
+        eula_page_link = dl_soup.find('img', alt='download')
+    if not eula_page_link: return None
+    eula_page_link = eula_page_link.parent['href']
+    if eula_page_link[0] == "/":
+        eula_page_link = "http://www.nvidia.com" + eula_page_link
+
+    eula_page = urllib2.urlopen(eula_page_link)
+    eula_soup = BeautifulSoup(eula_page)
+
+    download_link = eula_soup.find('img', alt='Agree & Download').parent['href']
+
+    return download_link
+
 def __load_latest_version_numbers():
     """
     Fetches the latest version numbers for each driver series.
@@ -149,7 +182,8 @@ def __load_latest_version_numbers():
     p_tags = soup.find_all('p')
     for p_tag in p_tags:
         section_header = p_tag.find('strong')
-        if section_header and "Linux x86" in section_header.text:
+        target_system =  "Linux x86_64/" if is_64bit else "Linux x86/"
+        if section_header and target_system in section_header.text:
             driver_section = p_tag
             break
 
@@ -169,13 +203,22 @@ def __load_latest_version_numbers():
                 elif ".xx series" in str(child):
                     legacy_found = True
             elif child.name == "a":
+                download_url = __get_download_url_for_tag(child)
+
+                this_version = None
                 if long_lived_found and long_lived_version == "":
                     long_lived_version = child.text
+                    this_version = child.text
                 elif short_lived_found and short_lived_version == "":
                     short_lived_version = child.text
+                    this_version = child.text
                 elif legacy_found:
                     legacy_versions.append(child.text)
                     legacy_found = False
+                    this_version = child.text
+
+                if this_version:
+                    version_urls[this_version] = download_url
 
     # Compose the URLs for the current version driver support pages
     long_lived_url = "http://us.download.nvidia.com/XFree86/Linux-x86_64/" + long_lived_version  + "/README/supportedchips.html"
@@ -215,6 +258,7 @@ def get_all_supported_devices():
                 pass
 
             series_lookup[series]["devices"].append(device)
+            series_lookup[series]["url"] = version_urls[latest_version]
 
     long_lived_series = ".".join(long_lived_version.split(".")[0:-1])
     short_lived_series = ".".join(short_lived_version.split(".")[0:-1])
@@ -245,6 +289,9 @@ def get_all_supported_devices():
     for l_device, s_device in zip(long_lived_devices, short_lived_devices):
         series_lookup[long_lived_series]["devices"].append(l_device)
         series_lookup[short_lived_series]["devices"].append(s_device)
+
+    series_lookup[long_lived_series]["url"] = version_urls[long_lived_version]
+    series_lookup[short_lived_series]["url"] = version_urls[short_lived_version]
 
     return series_lookup
 
@@ -324,9 +371,37 @@ def get_latest_driver_version(device_id=None):
     driver_series = get_required_driver_series(device_id)
     return series_lookup[driver_series]["latest_version"]
 
+def get_driver_url(device_id=None):
+    """
+    Returns the download URL of the required driver for the given or detected
+    device.
+
+    Keyward Args:
+    device_id - The device PCI ID to check against the supported devices lists
+    """
+    pci_id = device_id
+    if not pci_id:
+        device = get_nvidia_device()
+        pci_id = device.pci_id
+
+    if pci_id:
+        required_series = get_required_driver_series(pci_id)
+
+    if series_lookup:
+        return series_lookup[required_series]["url"]
+
+    return None
+
 def __main():
     global verbose
     global prefer_long_lived
+    global is_64bit
+
+    if "Linux" not in platform.system():
+        raise RuntimeError("[" + platform.system() + " Unsupported] - Pyvidia only support Linux systems!")
+
+    is_64bit = platform.machine().endswith("64")
+
     latest = False
     series = True
     pci_id = None
@@ -337,6 +412,7 @@ def __main():
     parser.add_argument("--longlived", help="Denotes that the long lived version of the current drivers should be prefered [Default]", action="store_true")
     parser.add_argument("--shortlived", help="Denotes that the short lived version of the current drivers should be prefered", action="store_true")
     parser.add_argument("--deviceid", help="Provide a device PCI ID to be used instead of auto-detecting one")
+    parser.add_argument("--url", help="Output the download URL for the required driver", action="store_true")
     parser.add_argument("-v", "--verbose", help="More detailed output", action="store_true")
     args = parser.parse_args()
 
@@ -349,6 +425,9 @@ def __main():
 
     if args.shortlived:
         prefer_long_lived = False
+
+    if verbose:
+        print "OS: " + platform.system() + " " + platform.machine()
 
     if args.deviceid:
         pci_id = args.deviceid.upper()
@@ -380,6 +459,9 @@ def __main():
 
                 print "Required " + series_designation  + " Driver Series: " + required_series + ".xx"
                 print "Latest Driver Version: " + latest_version
+                print "Download URL: " + series_lookup[required_series]["url"]
+            elif args.url:
+                print series_lookup[required_series]["url"]
             elif latest and latest_version:
                 print latest_version
             elif series and required_series:

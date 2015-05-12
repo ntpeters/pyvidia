@@ -35,6 +35,8 @@ The following command line options are also available:
 --deviceid DEVICEID     Provide a device PCI ID to be used instead of auto-
                         detecting one
 
+--url                   Output the download URL for the required driver
+
 -v, --verbose           More detailed output
 ```
 
@@ -68,6 +70,15 @@ get_nvidia_device()
 get_all_supported_devices()
     Returns a dictionary keyed by driver series number, containing the latest
     driver version number and a list of supported devices for that series.
+```
+
+```
+get_driver_url(device_id)
+    Returns the download URL of the required driver for the given or detected
+    device.
+
+    Keyward Args:
+    device_id - The device PCI ID to check against the supported devices lists
 ```
 
 #Requirements
