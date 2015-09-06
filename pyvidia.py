@@ -5,15 +5,26 @@
 # Also able to get the latest version of the required driver series.
 # Parses the list of supported devices for each driver version from the NVIDIA site.
 
+from __future__ import absolute_import
+from __future__ import print_function
 import argparse
 import collections
 import platform
 import re
 import subprocess
 import sys
-import urllib2
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
+import six
+from six.moves import zip
+
+# Get proper urllib for Python version
+try:
+    # Python 3
+    import urllib.request as urllib2
+except:
+    # Python 2
+    import urllib2
 
 # URL to scrape device info from for legacy devices
 legacy_device_url = "http://www.nvidia.com/object/IO_32667.html"
@@ -52,6 +63,9 @@ verbose = False
 # Denotes if the long lived current driver should be preferred over the short lived
 prefer_long_lived = True
 
+# Define the default parser for BS4 to use
+parser = "lxml"
+
 def __is_driver_section_header(tag):
     """
     Returns true if the given tag is a driver version section header.
@@ -69,7 +83,8 @@ def __get_driver_section_headers():
     Returns all driver version section header tags on the legacy driver page.
     """
     legacy_device_page = urllib2.urlopen(legacy_device_url)
-    soup = BeautifulSoup(legacy_device_page)
+    soup = BeautifulSoup(legacy_device_page, parser)
+
     return soup.find_all(__is_driver_section_header)
 
 def __get_driver_series_tag_text(tag):
@@ -123,7 +138,7 @@ def __get_current_driver_supported_devices(url):
     devices = []
 
     page = urllib2.urlopen(url)
-    soup = BeautifulSoup(page)
+    soup = BeautifulSoup(page, parser)
 
     current_sections = soup.find_all("div", {"class":"informaltable"}, limit=5)
     for section in current_sections:
@@ -147,7 +162,7 @@ def __get_download_url_for_tag(tag):
         dl_page_link = "http://www.nvidia.com" + dl_page_link
 
     dl_page = urllib2.urlopen(dl_page_link)
-    dl_soup = BeautifulSoup(dl_page)
+    dl_soup = BeautifulSoup(dl_page, parser)
 
     eula_page_link = dl_soup.find('img', alt='Download')
     if eula_page_link is None:
@@ -158,7 +173,7 @@ def __get_download_url_for_tag(tag):
         eula_page_link = "http://www.nvidia.com" + eula_page_link
 
     eula_page = urllib2.urlopen(eula_page_link)
-    eula_soup = BeautifulSoup(eula_page)
+    eula_soup = BeautifulSoup(eula_page, parser)
 
     download_link = eula_soup.find('img', alt='Agree & Download').parent['href']
 
@@ -175,7 +190,7 @@ def __load_latest_version_numbers():
     global legacy_versions
 
     page = urllib2.urlopen(unix_driver_url)
-    soup = BeautifulSoup(page)
+    soup = BeautifulSoup(page, parser)
 
     driver_section = None
 
@@ -258,7 +273,13 @@ def get_all_supported_devices():
                 pass
 
             series_lookup[series]["devices"].append(device)
-            series_lookup[series]["url"] = version_urls[latest_version]
+
+            try:
+
+                series_lookup[series]["url"]
+            except KeyError:
+                series_lookup[series]["url"] = version_urls[latest_version]
+                pass
 
     long_lived_series = ".".join(long_lived_version.split(".")[0:-1])
     short_lived_series = ".".join(short_lived_version.split(".")[0:-1])
@@ -306,23 +327,23 @@ def get_nvidia_device():
         pci_vga = subprocess.check_output(["grep", "-i", "VGA"], stdin=lspci.stdout)
     except subprocess.CalledProcessError:
         if __name__ == "__main__":
-            print "Error: Problem retreiving VGA device info!"
+            print("Error: Problem retreiving VGA device info!")
         raise
     except OSError:
         if __name__ == "__main__":
-            print "Error: Command 'lspci' not available!"
+            print("Error: Command 'lspci' not available!")
         raise
 
     if pci_vga != "":
-        if "nvidia" in pci_vga.lower():
+        if "nvidia" in pci_vga.lower().decode('utf-8'):
             pci_id_regex = re.compile('\:[0-9A-Fa-f]+\]')
-            pci_id_match = pci_id_regex.search(pci_vga)
+            pci_id_match = pci_id_regex.search(pci_vga.decode('utf-8'))
             id_start = pci_id_match.start() + 1
             id_end = pci_id_match.end() - 1
             pci_id = pci_vga[id_start:id_end].upper()
 
             device_name_regex = re.compile('nvidia.*\[10de')
-            device_name_match = device_name_regex.search(pci_vga.lower())
+            device_name_match = device_name_regex.search(pci_vga.lower().decode('utf-8'))
             name_start = device_name_match.start()
             name_end = device_name_match.end() - 5
             device_name = pci_vga[name_start:name_end]
@@ -348,14 +369,14 @@ def get_required_driver_series(device_id=None):
         if not series_lookup:
             get_all_supported_devices()
 
-        for driver_series, series_info in series_lookup.iteritems():
+        for driver_series, series_info in six.iteritems(series_lookup):
             if prefer_long_lived and driver_series in short_lived_version:
                 continue
             elif not prefer_long_lived and driver_series in long_lived_version:
                 continue
 
             for device in series_info["devices"]:
-                if device_id == device.pci_id:
+                if device_id.decode('utf-8') == device.pci_id:
                     return driver_series
 
     return None
@@ -427,24 +448,25 @@ def __main():
         prefer_long_lived = False
 
     if verbose:
-        print "OS: " + platform.system() + " " + platform.machine()
+        print("OS: " + platform.system() + " " + platform.machine())
 
     if args.deviceid:
-        pci_id = args.deviceid.upper()
+        pci_id = args.deviceid.upper().encode('utf-8')
         if verbose:
-            print "Device ID: " + pci_id
+            print("Device ID: " + pci_id)
     else:
         if verbose:
-            print "Searching for NVIDIA device..."
+            print("Searching for NVIDIA device...")
         device = get_nvidia_device()
         if device:
             if verbose:
-                print "Device Found: " + device.name
-                print "Device ID: " + device.pci_id
+                print("Device Found: " + device.name.decode('utf-8'))
+                print("Device ID: " + device.pci_id.decode('utf-8'))
             pci_id = device.pci_id
 
     if pci_id:
         required_series = get_required_driver_series(pci_id)
+
         latest_version = None
         if required_series:
             latest_version = series_lookup[required_series]["latest_version"]
@@ -457,19 +479,19 @@ def __main():
                 else:
                     series_designation = "Legacy"
 
-                print "Required " + series_designation  + " Driver Series: " + required_series + ".xx"
-                print "Latest Driver Version: " + latest_version
-                print "Download URL: " + series_lookup[required_series]["url"]
+                print("Required " + series_designation  + " Driver Series: " + required_series + ".xx")
+                print("Latest Driver Version: " + latest_version)
+                print("Download URL: " + series_lookup[required_series]["url"])
             elif args.url:
-                print series_lookup[required_series]["url"]
+                print(series_lookup[required_series]["url"])
             elif latest and latest_version:
-                print latest_version
+                print(latest_version)
             elif series and required_series:
-                print required_series
+                print(required_series)
         elif verbose:
-                print "No known compatible driver!"
+                print("No known compatible driver!")
     elif verbose:
-            print "No NVIDIA device detected!"
+            print("No NVIDIA device detected!")
 
 if __name__ == "__main__":
     __main()

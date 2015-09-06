@@ -86,3 +86,6 @@ The required modules for this script can be installed via pip:
 ```
 pip install -r requirements.txt
 ```
+
+#Compatibility
+Pyvidia should be compatible with both Python 2 (2.7) and Python 3
