@@ -5,12 +5,12 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
-with open(path.join(here, 'README.md'), encoding='utf-8') as f:
+with open(path.join(here, 'README'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
     name='pyvidia',
-    version='1.0.0b1',
+    version='1.0.1',
     description='Nvidia driver version detector for Linux',
     long_description=long_description,
     url='https://github.com/ntpeters/pyvidia',
@@ -18,9 +18,8 @@ setup(
     author_email='ntpeters@mtu.edu',
     license='MIT',
     classifiers=[
-        'Development Status :: 4 - Beta',
-        'License :: OSI Approved :: MIT',
-        'Operating System :: POSIX :: Linux',
+        'Development Status :: 5 - Production/Stable',
+        'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
@@ -30,6 +29,8 @@ setup(
     ],
 
     keywords='nvidia linux driver',
+
+    py_modules=['pyvidia'],
 
     packages=find_packages(),
 

@@ -9,6 +9,12 @@ driver information are always up-to-date.
 Inspired by the `nvidia-detect` utility in ELRepo:
 http://elrepo.org/tiki/nvidia-detect
 
+#Installation
+Pyvidia can be installed with pip:
+```
+pip install pyvidia
+```
+
 #Usage
 Pyvidia can either be executed as a standalone script, or imported as a module
 in other scripts.
