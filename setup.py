@@ -34,7 +34,7 @@ setup(
 
     packages=find_packages(),
 
-    install_requires=['beautifulsoup4', 'lxml'],
+    install_requires=['beautifulsoup4', 'lxml', 'six'],
 
     package_data={
         'pyvidia': [],
